@@ -15,7 +15,6 @@ from evaluation.visualization import (
     plot_roc_curve,
     plot_training_curves,
     plot_prediction_samples,
-    plot_gradcam_grid,
     plot_error_analysis,
     compare_training_curves,
     compare_roc_curves,

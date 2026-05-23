@@ -81,10 +81,10 @@ def run_full_evaluation(
 
     # Confusion Matrix
     print("\nPlotting confusion matrix ...")
-    plot_confusion_matrix(metrics["confusion_matrix"], name=CLASS_NAMES, model_name=model_name, save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png"))
+    plot_confusion_matrix(metrics["confusion_matrix"], class_name=CLASS_NAMES, model_name=model_name, save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png"))
 
     # Confusion matrix normalized
-    plot_confusion_matrix(metrics["confusion_matrix"], name=CLASS_NAMES, model_name=model_name, normalize=True, save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png"))
+    plot_confusion_matrix(metrics["confusion_matrix"], class_name=CLASS_NAMES, model_name=model_name, normalize=True, save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png"))
 
     # Step 5: Roc curve
     print("\nPlotting ROC curve ...")

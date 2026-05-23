@@ -1,0 +1,236 @@
+{
+  "kode_kelompok": "Selasa-3",
+  "topik_pilihan": 1,
+  "nama_topik": "Convolutional Neural Network (CNN)",
+  "judul_proyek": "Klasifikasi Pneumonia pada Citra Chest X-Ray Menggunakan Convolutional Neural Network (CNN) dan Grad-CAM",
+  "abstrak_singkat": "Proyek ini bertujuan membangun model klasifikasi citra medis berbasis Convolutional Neural Network (CNN) untuk mendeteksi pneumonia pada citra Chest X-Ray. Pendekatan yang digunakan meliputi implementasi baseline CNN dari awal (from scratch) dan pengembangan model transfer learning menggunakan ResNet50. Dataset yang digunakan berasal dari Chest X-Ray Pneumonia Dataset publik dari Kaggle. Tahap yang telah selesai meliputi preprocessing data, augmentasi citra, pembagian dataset secara stratified, implementasi baseline CNN, serta training awal selama 3 epoch dengan validation accuracy terbaik sebesar 94.59%. Pengembangan tahap selanjutnya akan difokuskan pada transfer learning, fine-tuning, evaluasi lanjutan, dan interpretabilitas model menggunakan Grad-CAM.",
+
+  "metode_ai": [
+    {
+      "nama": "Custom CNN",
+      "peran": "baseline",
+      "varian": "CNN from scratch dengan 3 convolution block, ReLU, MaxPooling, Dropout, dan Fully Connected layer",
+      "catatan": "Digunakan sebagai baseline model untuk klasifikasi NORMAL vs PNEUMONIA."
+    },
+    {
+      "nama": "ResNet50",
+      "peran": "utama",
+      "varian": "Transfer learning dan fine-tuning pretrained ImageNet",
+      "catatan": "Masih dalam tahap perancangan dan belum diintegrasikan pada eksperimen saat ini."
+    }
+  ],
+
+  "frameworks": [
+    {
+      "nama": "PyTorch",
+      "versi": "2.10.0+cpu",
+      "kegunaan": "Implementasi model CNN, training loop, dan optimisasi model"
+    },
+    {
+      "nama": "Torchvision",
+      "versi": "0.25.0+cpu",
+      "kegunaan": "Transformasi citra dan utility computer vision"
+    },
+    {
+      "nama": "Matplotlib",
+      "versi": "3.10.0",
+      "kegunaan": "Visualisasi distribusi data dan sampel citra"
+    },
+    {
+      "nama": "Scikit-learn",
+      "versi": "1.6.1",
+      "kegunaan": "Stratified train-validation-test split"
+    },
+    {
+      "nama": "Pandas",
+      "versi": "2.2.2",
+      "kegunaan": "Pengolahan dataframe dataset"
+    },
+    {
+      "nama": "Seaborn",
+      "versi": "0.13.2",
+      "kegunaan": "Visualisasi distribusi kelas dataset"
+    }
+  ],
+
+  "datasets": [
+    {
+      "nama": "Chest X-Ray Images (Pneumonia)",
+      "tipe": "publik",
+      "sumber": "Kaggle",
+      "url_sumber_publik": "https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia",
+      "jumlah_sampel": 11712,
+      "jumlah_kelas": 2,
+      "proses_akuisisi_mandiri": "",
+      "peran_di_proyek": "Dataset utama untuk klasifikasi citra Chest X-Ray NORMAL dan PNEUMONIA.",
+      "spek_rl": null
+    },
+    {
+      "nama": "ImageNet-1k",
+      "tipe": "publik",
+      "sumber": "ImageNet",
+      "url_sumber_publik": "https://www.image-net.org/",
+      "jumlah_sampel": 1281167,
+      "jumlah_kelas": 1000,
+      "proses_akuisisi_mandiri": "",
+      "peran_di_proyek": "Sumber pretrained weights untuk model transfer learning ResNet50.",
+      "spek_rl": null
+    }
+  ],
+
+  "metrik_utama": [
+    "Accuracy",
+    "Cross-Entropy Loss",
+    "Confusion Matrix",
+    "Precision",
+    "Recall",
+    "F1-Score"
+  ],
+
+  "klaim_bonus": [
+    "B1"
+  ],
+
+  "anggota": [
+    {
+      "nama": "Arsinta Kirana Nisa",
+      "npm": "2306215980",
+      "peran_utama": "Data Engineering & Preprocessing",
+      "focus_area": [
+        "Dataset pipeline",
+        "EDA",
+        "Preprocessing citra",
+        "Data augmentation",
+        "DataLoader integration"
+      ],
+      "konsep_dikuasai_implementasi": [
+        "PyTorch Dataset & DataLoader",
+        "Image normalization",
+        "Image augmentation",
+        "Stratified train-validation-test split"
+      ],
+      "konsep_dikuasai_teori": [
+        "Class imbalance",
+        "Data augmentation",
+        "Image preprocessing",
+        "Dataset splitting"
+      ],
+      "bagian_kode": [
+        "preprocessing/preprocessing.py",
+        "preprocessing/dataset.py",
+        "preprocessing/dataloader.py"
+      ]
+    },
+    {
+      "nama": "Siti Amalia Nurfaidah",
+      "npm": "2306161851",
+      "peran_utama": "Baseline CNN Engineer",
+      "focus_area": [
+        "CNN architecture",
+        "Training loop",
+        "Validation pipeline",
+        "Checkpointing"
+      ],
+      "konsep_dikuasai_implementasi": [
+        "Conv2D",
+        "ReLU activation",
+        "MaxPooling",
+        "Dropout",
+        "CrossEntropyLoss",
+        "Adam optimizer",
+        "Backpropagation"
+      ],
+      "konsep_dikuasai_teori": [
+        "Forward propagation",
+        "Gradient descent",
+        "Overfitting",
+        "CNN feature extraction"
+      ],
+      "bagian_kode": [
+        "models/baseline_model.py",
+        "training/train_baseline.py"
+      ]
+    },
+    {
+      "nama": "Mutia Casella",
+      "npm": "2306202870",
+      "peran_utama": "Transfer Learning & Fine-Tuning",
+      "focus_area": [
+        "Transfer learning",
+        "Fine-tuning",
+        "Experiment configuration",
+        "Hyperparameter tuning"
+      ],
+      "konsep_dikuasai_implementasi": [
+        "Pretrained CNN",
+        "Layer freezing",
+        "Fine-tuning strategy",
+        "Learning rate tuning"
+      ],
+      "konsep_dikuasai_teori": [
+        "Transfer learning",
+        "Residual learning",
+        "Feature extraction",
+        "Bias-variance tradeoff"
+      ],
+      "bagian_kode": [
+        "models/transfer_learning.py",
+        "training/finetune.py",
+        "training/experiment.py"
+      ]
+    },
+    {
+      "nama": "Azra Nabila Azzahra",
+      "npm": "2306161782",
+      "peran_utama": "Evaluation & Grad-CAM",
+      "focus_area": [
+        "Evaluation metrics",
+        "Grad-CAM visualization",
+        "Error analysis",
+        "Visualization"
+      ],
+      "konsep_dikuasai_implementasi": [
+        "Confusion matrix",
+        "Precision & Recall",
+        "F1-score",
+        "Grad-CAM heatmap",
+        "Prediction visualization"
+      ],
+      "konsep_dikuasai_teori": [
+        "Model interpretability",
+        "Classification metrics",
+        "False positive & false negative analysis",
+        "Visual explanation pada CNN"
+      ],
+      "bagian_kode": [
+        "evaluation/metrics.py",
+        "evaluation/evaluation.py",
+        "evaluation/gradcam.py",
+        "visualization/visualization.py"
+      ]
+    }
+  ],
+
+  "tautan": {
+    "github": "https://github.com/reimoyisuki/pneumonia-xray-cnn-gradcam",
+    "colab": "https://colab.research.google.com/drive/1j_8bEz6FORUJlHewGgexl5Ls-4qQcR0n?usp=sharing",
+    "dataset_mandiri": null,
+    "video_demo": null
+  },
+
+  "ai_assistant_usage": {
+    "digunakan": true,
+    "tools": [
+      "ChatGPT",
+      "Deepseek"
+    ],
+    "bagian": [
+      "Perbaikan struktur kode",
+      "Debugging import dan environment Colab",
+      "Review penulisan akademik",
+      "Penyusunan metadata proyek",
+      "Penyusunan laporan progress report"
+    ],
+    "estimasi_persentase": 20
+  }
+}

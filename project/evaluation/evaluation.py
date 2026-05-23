@@ -1,13 +1,3 @@
-"""
-Jalankan seluruh pipeline evaluasi untuk model CNN pada dataset pneumonia X-ray,dimana;
-- Mengumpulkan prediksi dari test_loader
-- Menghitung metrik: accuracy, precision, recall, F1-score, ROC-AUC
-- Plot confusion matrix, ROC curve, prediction samples, error analysis
-- Generate Grad-CAM untuk sampel gambar
-- Bandingkan beberapa model dalam satu tabel ringkas
-
-"""
-
 import os
 import torch
 import numpy as np
@@ -44,6 +34,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # ------------------------------------------------------------------
 
 def load_baseline(model_path="best_baseline_cnn.pth"):
+    """Load Baseline CNN dari checkpoint."""
     model = BaselineCNN(num_classes=2)
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model.eval()
@@ -51,6 +42,7 @@ def load_baseline(model_path="best_baseline_cnn.pth"):
     return model
 
 def load_transfer(model_path="resnet50_frozen.pth"):
+    """Load ResNet50 Transfer Learning dari checkpoint."""
     model = ResNet50TransferLearning(num_classes=2)
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model.eval()
@@ -62,10 +54,7 @@ def run_full_evaluation(
     model_name="Model",
     class_names=None,
     run_gradcam=True,
-    baseline_model_path="best_baseline_cnn.pth",
-    transfer_model_path="resnet50_frozen.pth",
-    history_baseline=None,
-    history_transfer=None,
+    history=None,
 ):
     if class_names is None:
         class_names = test_loader
@@ -94,6 +83,9 @@ def run_full_evaluation(
     # Confusion Matrix
     print("\nPlotting confusion matrix ...")
     plot_confusion_matrix(metrics["confusion_matrix"], name=CLASS_NAMES, model_name=model_name, save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png"))
+
+    # Confusion matrix normalized
+    plot_confusion_matrix(metrics["confusion_matrix"], name=CLASS_NAMES, model_name=model_name, normalize=True, save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png"))
 
     # Step 5: Roc curve
     print("\nPlotting ROC curve ...")

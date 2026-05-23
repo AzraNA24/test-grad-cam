@@ -89,7 +89,13 @@ def run_full_evaluation(
     )
 
     # Confusion matrix normalized
-    plot_confusion_matrix(metrics["confusion_matrix"], class_name=CLASS_NAMES, model_name=model_name, normalize=True, save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png"))
+    plot_confusion_matrix(
+        metrics["confusion_matrix"], 
+        class_names=CLASS_NAMES, 
+        model_name=model_name, 
+        normalize=True, 
+        save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png")
+    )
 
     # Step 5: Roc curve
     print("\nPlotting ROC curve ...")
@@ -153,7 +159,7 @@ def _run_gradcam(model, model_name, class_names):
             return
         
         print(f"\n[Grad-CAM] Generating for {model_name} ...")
-        batch_gradcam(model, target_layer, class_names, n_samples=6, names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"gradcam_{model_name.lower().replace(' ', '_')}.png"))
+        batch_gradcam(model, target_layer, class_names, n_samples=6, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"gradcam_{model_name.lower().replace(' ', '_')}.png"))
     except Exception as e:
         print(f"Grad-CAM gagal: {e}")
 

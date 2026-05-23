@@ -61,8 +61,11 @@ def run_full_evaluation(
     model,
     model_name="Model",
     class_names=None,
-    history=None,
     run_gradcam=True,
+    baseline_model_path="best_baseline_cnn.pth",
+    transfer_model_path="resnet50_frozen.pth",
+    history_baseline=None,
+    history_transfer=None,
 ):
     if class_names is None:
         class_names = test_loader

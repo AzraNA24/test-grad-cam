@@ -9,6 +9,8 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 
 class GradCAM:
@@ -57,64 +59,46 @@ class GradCAM:
 
         # Backward pass
         self.model.zero_grad()
-        score = output[0, class_idx]
-        score.backward()
-
-        # Compute heatmap
-        # gradients  : (1, C, H, W)
-        # activations: (1, C, H, W)
-        gradients   = self.gradients[0]   
-        activations = self.activations[0]        
+        one_hot = torch.zeros_like(output)
+        one_hot[0, class_idx] = 1.0
+        output.backward(gradient=one_hot, retain_graph=True)
 
         # Global Average Pooling pada gradients 
-        weights = gradients.mean(dim=(1, 2))      
+        weights = self._gradients.mean(dim=[2, 3], keepdim=True)      
 
         # Weighted combination of activation maps
-        cam = torch.zeros(activations.shape[1:], device=device)
-        for i, w in enumerate(weights):
-            cam += w * activations[i]
-
+        cam = (weights * self._activations).sum(dim=1, keepdim=True)  # (1, 1, h, w)
         # ReLU ambil hanya kontribusi positif
         cam = F.relu(cam)
 
-        # Resize ke ukuran input asli
-        H, W = input_tensor.shape[2], input_tensor.shape[3]
-        cam = cam.unsqueeze(0).unsqueeze(0)        # (1, 1, h, w)
-        cam = F.interpolate(cam, size=(H, W), mode="bilinear", align_corners=False)
-        cam = cam.squeeze().cpu().numpy()          # (H, W)
+        # Resize ke ukuran input asli ~~ Change
+        cam = F.interpolate(
+            cam,
+            size=(input_tensor.shape[2], input_tensor.shape[3]),
+            mode="bilinear",
+            align_corners=False
+        )         # (H, W)
 
         # Normalize 0–1
-        cam_min, cam_max = cam.min(), cam.max()
-        if cam_max - cam_min > 1e-8:
-            cam = (cam - cam_min) / (cam_max - cam_min)
-        else:
-            cam = np.zeros_like(cam)
+        cam = cam.squeeze().cpu().numpy()
+        cam -= cam.min()
+        if cam.max() > 0:
+            cam /= cam.max()
 
-        return cam, class_idx, pred_prob
+        return cam
 
     # ------------------------------------------------------------------
     # Overlay heatmap ke gambar asli
     # ------------------------------------------------------------------
 
     @staticmethod
-    def overlay(image_np, heatmap, alpha=0.4, colormap=cv2.COLORMAP_JET):
-        # Pastikan image_np adalah uint8 BGR
-        if image_np.dtype != np.uint8:
-            image_np = (image_np * 255).astype(np.uint8)
-
-        if len(image_np.shape) == 2:                         # grayscale → BGR
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2BGR)
-        elif image_np.shape[2] == 1:
-            image_np = cv2.cvtColor(image_np[:, :, 0], cv2.COLOR_GRAY2BGR)
-
-        # Konversi heatmap 0-1 → 0-255 → colormap BGR
+    def overlay(self, original_image_np, heatmap, alpha=0.45, colormap=cv2.COLORMAP_JET):
         heatmap_uint8 = np.uint8(255 * heatmap)
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, colormap)
+        heatmap_rgb = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
 
-        # Overlay
-        overlay_img = cv2.addWeighted(heatmap_colored, alpha, image_np, 1 - alpha, 0)
-
-        return overlay_img, heatmap_colored
+        overlay = (alpha * heatmap_rgb + (1 - alpha) * original_image_np).astype(np.uint8)
+        return overlay
 
     # ------------------------------------------------------------------
     # Cleanup
@@ -130,38 +114,92 @@ class GradCAM:
 # Helper: auto-detect target layer untuk model umum
 # ------------------------------------------------------------------
 
-def get_target_layer(model):
-    model_name = type(model).__name__.lower()
+def denormalize(tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    t = tensor.clone().cpu().numpy().transpose(1, 2, 0)  # CHW → HWC
+    t = t * np.array(std) + np.array(mean)
+    t = np.clip(t, 0, 1)
+    return (t * 255).astype(np.uint8)
 
-    # ResNet variants
-    if "resnet" in model_name:
-        return model.layer4[-1]
 
-    # EfficientNet (timm / torchvision)
-    if "efficientnet" in model_name:
-        try:
-            return model.features[-1]
-        except AttributeError:
-            return list(model.children())[-3]
+def visualize_gradcam(model, target_layer, input_tensor, label, class_names=None,
+                      target_class=None, save_path=None, ax=None):
+    if class_names is None:
+        class_names = ["NORMAL", "PNEUMONIA"]
 
-    # BASELINE
-    for attr in ["conv_layers", "features", "conv3", "conv_block3"]:
-        if hasattr(model, attr):
-            layer = getattr(model, attr)
-            if isinstance(layer, torch.nn.Sequential):
-                return layer[-1]
-            return layer
+    gradcam = GradCAM(model, target_layer)
+    heatmap = gradcam.generate(input_tensor, target_class=target_class)
+    gradcam.remove_hooks()
 
-    # Fallback: cari module konvolusi terakhir secara generik
-    last_conv = None
-    for module in model.modules():
-        if isinstance(module, torch.nn.Conv2d):
-            last_conv = module
-    if last_conv is not None:
-        print("[GradCAM] Menggunakan Conv2d terakhir yang ditemukan sebagai target layer.")
-        return last_conv
+    original = denormalize(input_tensor.squeeze(0))
+    overlaid = gradcam.overlay(original, heatmap)
 
-    raise ValueError(
-        "Tidak bisa auto-detect target layer. "
-        "Panggil GradCAM(model, target_layer=...) secara manual."
-    )
+    # Prediksi kelas
+    with torch.no_grad():
+        logits = model(input_tensor.to(next(model.parameters()).device))
+        pred = logits.argmax(dim=1).item()
+
+    if ax is None:
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    else:
+        axes = ax
+
+    axes[0].imshow(original)
+    axes[0].set_title(f"Original\nLabel: {class_names[label]}", fontsize=10)
+    axes[0].axis("off")
+
+    im = axes[1].imshow(heatmap, cmap="jet", vmin=0, vmax=1)
+    axes[1].set_title("Grad-CAM Heatmap", fontsize=10)
+    axes[1].axis("off")
+    plt.colorbar(im, ax=axes[1], fraction=0.046, pad=0.04)
+
+    axes[2].imshow(overlaid)
+    color = "green" if pred == label else "red"
+    axes[2].set_title(f"Overlay\nPredicted: {class_names[pred]}", fontsize=10, color=color)
+    axes[2].axis("off")
+
+    if ax is None:
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=150, bbox_inches="tight")
+            print(f"Saved: {save_path}")
+        plt.show()
+
+    return heatmap
+
+
+def batch_gradcam(model, target_layer, data_loader, n_samples=8,
+                  class_names=None, save_path=None):
+    if class_names is None:
+        class_names = ["NORMAL", "PNEUMONIA"]
+
+    device = next(model.parameters()).device
+    model.eval()
+
+    images, labels = [], []
+    for batch_imgs, batch_labels in data_loader:
+        for img, lbl in zip(batch_imgs, batch_labels):
+            images.append(img)
+            labels.append(lbl.item())
+            if len(images) >= n_samples:
+                break
+        if len(images) >= n_samples:
+            break
+
+    fig, axes = plt.subplots(n_samples, 3, figsize=(12, 4 * n_samples))
+    if n_samples == 1:
+        axes = axes[np.newaxis, :]
+
+    for i, (img, lbl) in enumerate(zip(images, labels)):
+        inp = img.unsqueeze(0)
+        visualize_gradcam(
+            model, target_layer, inp, lbl,
+            class_names=class_names,
+            ax=axes[i]
+        )
+
+    plt.suptitle("Grad-CAM Analysis — Chest X-Ray", fontsize=14, fontweight="bold", y=1.01)
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Batch Grad-CAM saved: {save_path}")
+    plt.show()

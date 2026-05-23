@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 import itertools
-
+from sklearn.metrics import roc_curve, auc
+import torch
 
 # ------------------------------------------------------------------
 # Tema global — konsisten di semua plot
@@ -33,80 +34,102 @@ plt.rcParams.update({
 })
 
 
+def _style_ax(ax, title, xlabel=None, ylabel=None):
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+    if xlabel:
+        ax.set_xlabel(xlabel, fontsize=10)
+    if ylabel:
+        ax.set_ylabel(ylabel, fontsize=10)
+    ax.grid(True, alpha=0.25, linestyle="--")
+    ax.spines[["top", "right"]].set_visible(False)
+    
 # ------------------------------------------------------------------
 # 1. Confusion Matrix
 # ------------------------------------------------------------------
 
-def plot_confusion_matrix(cm, class_names=None, save_path=None):
+def plot_confusion_matrix(cm, class_names=None, model_name="Model", normalize=False, save_path=None):
     if class_names is None:
         class_names = ["NORMAL", "PNEUMONIA"]
 
-    cm_norm = cm.astype("float") / cm.sum(axis=1, keepdims=True)
+    if normalize:
+        cm_display = cm.astype(float) / cm.sum(axis=1, keepdims=True)
+        fmt = ".2%"
+        title = f"Normalized Confusion Matrix — {model_name}"
+    else:
+        cm_display = cm
+        fmt = "d"
+        title = f"Confusion Matrix — {model_name}"
 
     fig, ax = plt.subplots(figsize=(6, 5))
     sns.heatmap(
-        cm_norm,
-        annot=False,
-        fmt=".2f",
+        cm_display,
+        annot=True,
+        fmt=fmt,
         cmap="Blues",
+        xticklabels=class_names,
+        yticklabels=class_names,
         linewidths=0.5,
         linecolor="white",
         ax=ax,
-        cbar_kws={"label": "Proportion"},
+        cbar_kws={"shrink": 0.8},
     )
-
-    # Anotasi gabungan nilai & persentase
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        ax.text(
-            j + 0.5, i + 0.5,
-            f"{cm[i, j]}\n({cm_norm[i, j]:.1%})",
-            ha="center", va="center",
-            fontsize=12, fontweight="bold",
-            color="white" if cm_norm[i, j] > 0.5 else "black",
-        )
 
     ax.set_xlabel("Predicted Label", fontsize=11)
     ax.set_ylabel("True Label", fontsize=11)
-    ax.set_title("Confusion Matrix", fontsize=13)
-    ax.set_xticklabels(class_names)
-    ax.set_yticklabels(class_names, rotation=0)
-
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"Confusion matrix disimpan: {save_path}")
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
     plt.show()
-    return fig
 
 
 # ------------------------------------------------------------------
 # 2. ROC Curve
 # ------------------------------------------------------------------
 
-def plot_roc_curve(fpr, tpr, roc_auc, save_path=None):
+def plot_roc_curve(labels, probs, model_name="Model", save_path=None):
+    fpr, tpr, _ = roc_curve(labels, probs)
+    roc_auc = auc(fpr, tpr)
+
     fig, ax = plt.subplots(figsize=(6, 5))
-
-    ax.plot(fpr, tpr, color=PALETTE["primary"], lw=2.5,
-            label=f"ROC Curve (AUC = {roc_auc:.4f})")
-    ax.plot([0, 1], [0, 1], color=PALETTE["neutral"], lw=1.5,
+    ax.plot(fpr, tpr, color=PALETTE["blue"], lw=2,
+            label=f"{model_name} (AUC = {roc_auc:.4f})")
+    ax.plot([0, 1], [0, 1], color=PALETTE["gray"], lw=1.5,
             linestyle="--", label="Random Classifier")
-
-    ax.fill_between(fpr, tpr, alpha=0.12, color=PALETTE["primary"])
-
-    ax.set_xlabel("False Positive Rate", fontsize=11)
-    ax.set_ylabel("True Positive Rate", fontsize=11)
-    ax.set_title("ROC Curve", fontsize=13)
-    ax.legend(loc="lower right", fontsize=10)
-    ax.set_xlim([0.0, 1.0])
-    ax.set_ylim([0.0, 1.05])
-
+    ax.fill_between(fpr, tpr, alpha=0.08, color=PALETTE["blue"])
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1.02])
+    _style_ax(ax, f"ROC Curve — {model_name}", "False Positive Rate", "True Positive Rate")
+    ax.legend(loc="lower right")
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"ROC curve disimpan: {save_path}")
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
     plt.show()
-    return fig
+    return roc_auc
 
+def compare_roc_curves(results_dict, save_path=None):
+    colors = [PALETTE["blue"], PALETTE["orange"], PALETTE["green"], PALETTE["red"]]
+    fig, ax = plt.subplots(figsize=(7, 6))
+
+    for i, (name, data) in enumerate(results_dict.items()):
+        fpr, tpr, _ = roc_curve(data["labels"], data["probs"])
+        roc_auc = auc(fpr, tpr)
+        ax.plot(fpr, tpr, color=colors[i % len(colors)], lw=2,
+                label=f"{name} (AUC = {roc_auc:.4f})")
+
+    ax.plot([0, 1], [0, 1], color=PALETTE["gray"], lw=1.5,
+            linestyle="--", label="Random")
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1.02])
+    _style_ax(ax, "ROC Curve Comparison", "False Positive Rate", "True Positive Rate")
+    ax.legend(loc="lower right")
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
 
 # ------------------------------------------------------------------
 # 3. Training Curves
@@ -115,173 +138,117 @@ def plot_roc_curve(fpr, tpr, roc_auc, save_path=None):
 def plot_training_curves(history: dict, model_name="Model", save_path=None):
     epochs = range(1, len(history["train_loss"]) + 1)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle(f"Training Curves — {model_name}", fontsize=13, fontweight="bold")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(f"Training History — {model_name}", fontsize=14, fontweight="bold")
 
-    # --- Loss ---
-    ax = axes[0]
-    ax.plot(epochs, history["train_loss"], color=PALETTE["primary"],
-            lw=2, label="Train Loss", marker="o", markersize=4)
-    ax.plot(epochs, history["val_loss"], color=PALETTE["danger"],
-            lw=2, label="Val Loss", marker="s", markersize=4, linestyle="--")
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Loss")
-    ax.set_title("Loss per Epoch")
-    ax.legend()
+    # Loss
+    ax1.plot(epochs, history["train_loss"], color=PALETTE["blue"],  lw=2, label="Train Loss")
+    ax1.plot(epochs, history["val_loss"],   color=PALETTE["red"],   lw=2, label="Val Loss", linestyle="--")
+    _style_ax(ax1, "Loss per Epoch", "Epoch", "Loss")
+    ax1.legend()
 
-    # --- Accuracy ---
-    ax = axes[1]
-    ax.plot(epochs, history["train_acc"], color=PALETTE["primary"],
-            lw=2, label="Train Acc", marker="o", markersize=4)
-    ax.plot(epochs, history["val_acc"], color=PALETTE["success"],
-            lw=2, label="Val Acc", marker="s", markersize=4, linestyle="--")
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Accuracy")
-    ax.set_title("Accuracy per Epoch")
-    ax.legend()
+    # Accuracy
+    ax2.plot(epochs, history["train_acc"], color=PALETTE["blue"],  lw=2, label="Train Acc")
+    ax2.plot(epochs, history["val_acc"],   color=PALETTE["red"],   lw=2, label="Val Acc", linestyle="--")
+    ax2.set_ylim([0, 1.05])
+    _style_ax(ax2, "Accuracy per Epoch", "Epoch", "Accuracy")
+    ax2.legend()
 
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"Training curves disimpan: {save_path}")
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
     plt.show()
-    return fig
 
+def compare_training_curves(history_baseline, history_transfer, save_path=None):
+    epochs_b = range(1, len(history_baseline["val_acc"]) + 1)
+    epochs_t = range(1, len(history_transfer["val_acc"]) + 1)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle("Model Comparison — Baseline CNN vs Transfer Learning", fontsize=13, fontweight="bold")
+
+    labels = [("Baseline CNN", PALETTE["blue"]), 
+              ("ResNet50 Transfer", PALETTE["orange"])]
+
+    for ax, key, title, ylim in [
+        (axes[0], "val_loss",  "Validation Loss",     None),
+        (axes[1], "val_acc",   "Validation Accuracy", (0, 1.05)),
+    ]:
+        ax.plot(epochs_b, history_baseline[key], color=labels[0][1], lw=2, label=labels[0][0])
+        ax.plot(epochs_t, history_transfer[key], color=labels[1][1], lw=2, label=labels[1][0], linestyle="--")
+        _style_ax(ax, title, "Epoch", key.split("_")[1].capitalize())
+        if ylim:
+            ax.set_ylim(ylim)
+        ax.legend()
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
 
 # ------------------------------------------------------------------
 # 4. Prediction Samples
 # ------------------------------------------------------------------
+def denormalize(tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    t = tensor.clone().cpu().numpy().transpose(1, 2, 0)
+    t = t * np.array(std) + np.array(mean)
+    return np.clip(t, 0, 1)
 
 def plot_prediction_samples(
-    images, labels, preds, probs,
-    class_names=None, n=16, save_path=None
+    model, data_loader, n=8,
+    class_names=None, save_path=None
 ):
     if class_names is None:
         class_names = ["NORMAL", "PNEUMONIA"]
 
-    n = min(n, len(images))
-    cols = 4
-    rows = math.ceil(n / cols)
+    device = next(model.parameters()).device
+    model.eval()
 
-    fig, axes = plt.subplots(rows, cols, figsize=(cols * 3.2, rows * 3.5))
-    axes = axes.flatten() if n > 1 else [axes]
+    images, labels, preds = [], [], []
+    with torch.no_grad():
+        for imgs, lbls in data_loader:
+            imgs = imgs.to(device)
+            outputs = model(imgs)
+            pred = outputs.argmax(dim=1).cpu()
+            images.extend(imgs.cpu())
+            labels.extend(lbls.numpy())
+            preds.extend(pred.numpy())
+            if len(images) >= n:
+                break
 
-    for i in range(n):
+    images, labels, preds = images[:n], labels[:n], preds[:n]
+    ncols = min(4, n)
+    nrows = (n + ncols - 1) // ncols
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 4 * nrows))
+    axes = np.array(axes).flatten()
+
+    for i, (img, lbl, pred) in enumerate(zip(images, labels, preds)):
         ax = axes[i]
-        img = images[i]
-
-        # Normalisasi ke 0-1 untuk imshow
-        if img.dtype != np.float32 and img.dtype != np.float64:
-            img = img.astype(np.float32) / 255.0
-        img = np.clip(img, 0, 1)
-
-        if img.ndim == 2 or (img.ndim == 3 and img.shape[0] in [1, 3]):
-            # Channel-first → channel-last
-            if img.ndim == 3 and img.shape[0] in [1, 3]:
-                img = np.transpose(img, (1, 2, 0))
-            if img.ndim == 3 and img.shape[2] == 1:
-                img = img[:, :, 0]
-
-        ax.imshow(img, cmap="gray" if img.ndim == 2 else None)
-
-        correct = (labels[i] == preds[i])
-        border_color = PALETTE["success"] if correct else PALETTE["danger"]
+        ax.imshow(denormalize(img))
+        correct = pred == lbl
+        border_color = PALETTE["green"] if correct else PALETTE["red"]
         for spine in ax.spines.values():
             spine.set_edgecolor(border_color)
-            spine.set_linewidth(3.5)
-
+            spine.set_linewidth(3)
         ax.set_title(
-            f"GT: {class_names[labels[i]]}\n"
-            f"Pred: {class_names[preds[i]]} ({probs[i]:.2f})",
-            fontsize=8,
-            color=border_color,
+            f"True: {class_names[lbl]}\nPred: {class_names[pred]}",
+            fontsize=9,
+            color="black"
         )
         ax.set_xticks([])
         ax.set_yticks([])
 
-    # Sembunyikan axes kosong
     for j in range(i + 1, len(axes)):
-        axes[j].set_visible(False)
+        axes[j].axis("off")
 
-    plt.suptitle("Prediction Samples", fontsize=13, fontweight="bold", y=1.01)
+    fig.suptitle("Prediction Examples  (green = correct, red = wrong)", fontsize=13, fontweight="bold")
     plt.tight_layout()
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"Prediction samples disimpan: {save_path}")
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
     plt.show()
-    return fig
-
-
-# ------------------------------------------------------------------
-# 5. Grad-CAM Grid
-# ------------------------------------------------------------------
-
-def plot_gradcam_grid(
-    samples: list,
-    class_names=None,
-    title="Grad-CAM Visualization",
-    save_path=None
-):
-    if class_names is None:
-        class_names = ["NORMAL", "PNEUMONIA"]
-
-    n = len(samples)
-    cols_per_sample = 3   # Original | Heatmap | Overlay
-    fig_width = cols_per_sample * n * 2.8
-    fig_height = 4.0
-
-    fig, axes = plt.subplots(1, n * cols_per_sample, figsize=(fig_width, fig_height))
-    if n * cols_per_sample == 1:
-        axes = [axes]
-
-    col_labels = ["Original", "Heatmap", "Overlay"]
-
-    for i, sample in enumerate(samples):
-        img     = sample["image"]
-        heatmap = sample["heatmap"]
-        overlay = sample["overlay"]
-        gt      = sample["true_label"]
-        pred    = sample["pred_label"]
-        prob    = sample["pred_prob"]
-
-        # Normalize image untuk imshow
-        if img.dtype != np.float32 and img.dtype != np.float64:
-            img_show = img.astype(np.float32) / 255.0
-        else:
-            img_show = img.copy()
-        if img_show.ndim == 3 and img_show.shape[0] in [1, 3]:
-            img_show = np.transpose(img_show, (1, 2, 0))
-        if img_show.ndim == 3 and img_show.shape[2] == 1:
-            img_show = img_show[:, :, 0]
-
-        visuals = [img_show, heatmap, overlay[:, :, ::-1] / 255.0]
-        cmaps   = ["gray" if img_show.ndim == 2 else None, "jet", None]
-
-        correct = (gt == pred)
-        title_color = PALETTE["success"] if correct else PALETTE["danger"]
-
-        for j, (vis, cmap) in enumerate(zip(visuals, cmaps)):
-            ax = axes[i * cols_per_sample + j]
-            ax.imshow(vis, cmap=cmap)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.set_xlabel(col_labels[j], fontsize=9, labelpad=3)
-
-            if j == 1:
-                ax.set_title(
-                    f"GT: {class_names[gt]} | Pred: {class_names[pred]} ({prob:.2f})",
-                    fontsize=8.5,
-                    color=title_color,
-                    fontweight="bold",
-                )
-
-    plt.suptitle(title, fontsize=13, fontweight="bold")
-    plt.tight_layout()
-    if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"Grad-CAM grid disimpan: {save_path}")
-    plt.show()
-    return fig
 
 
 # ------------------------------------------------------------------
@@ -289,76 +256,94 @@ def plot_gradcam_grid(
 # ------------------------------------------------------------------
 
 def plot_error_analysis(
-    images, labels, preds, probs,
-    class_names=None, n_each=8, save_path=None
+    model, data_loader, class_names=None,
+    n_fp=4, n_fn=4, save_path=None
 ):
-    """
-    Tampilkan False Positive dan False Negative secara terpisah.
-
-    Parameters
-    ----------
-    images, labels, preds, probs : sama seperti plot_prediction_samples()
-    n_each    : int — jumlah error per kategori yang ditampilkan
-    save_path : str opsional
-    """
     if class_names is None:
         class_names = ["NORMAL", "PNEUMONIA"]
 
-    images = np.array(images)
-    labels = np.array(labels)
-    preds  = np.array(preds)
-    probs  = np.array(probs)
+    device = next(model.parameters()).device
+    model.eval()
 
-    # False Positive: prediksi PNEUMONIA padahal NORMAL (label=0, pred=1)
-    fp_idx = np.where((labels == 0) & (preds == 1))[0]
-    # False Negative: prediksi NORMAL padahal PNEUMONIA (label=1, pred=0)
-    fn_idx = np.where((labels == 1) & (preds == 0))[0]
+    fp_images, fn_images = [], []
 
-    print(f"Total False Positives (FP): {len(fp_idx)}")
-    print(f"Total False Negatives (FN): {len(fn_idx)}")
+    with torch.no_grad():
+        for imgs, lbls in data_loader:
+            imgs_dev = imgs.to(device)
+            outputs = model(imgs_dev)
+            preds = outputs.argmax(dim=1).cpu().numpy()
 
-    for error_name, idx in [("False Positive (FP)", fp_idx), ("False Negative (FN)", fn_idx)]:
-        if len(idx) == 0:
-            print(f"Tidak ada {error_name}.")
-            continue
+            for img, lbl, pred in zip(imgs.cpu(), lbls.numpy(), preds):
+                lbl = int(lbl)
+                pred = int(pred)
+                if lbl == 0 and pred == 1 and len(fp_images) < n_fp:
+                    fp_images.append(img)
+                elif lbl == 1 and pred == 0 and len(fn_images) < n_fn:
+                    fn_images.append(img)
 
-        sel = idx[:n_each]
-        n   = len(sel)
-        cols = min(n, 4)
-        rows = math.ceil(n / cols)
+            if len(fp_images) >= n_fp and len(fn_images) >= n_fn:
+                break
 
-        fig, axes = plt.subplots(rows, cols, figsize=(cols * 3, rows * 3.2))
-        axes = np.array(axes).flatten() if n > 1 else [axes]
+    n_cols = max(n_fp, n_fn)
+    fig, axes = plt.subplots(2, n_cols, figsize=(3.5 * n_cols, 7))
 
-        fig.suptitle(f"Error Analysis — {error_name}", fontsize=12,
-                     fontweight="bold", color=PALETTE["danger"])
+    row_titles = [
+        f"False Positives ({n_fp})  — NORMAL predicted as PNEUMONIA",
+        f"False Negatives ({n_fn})  — PNEUMONIA predicted as NORMAL",
+    ]
+    sets = [fp_images, fn_images]
+    colors = [PALETTE["orange"], PALETTE["red"]]
 
-        for k, ax in enumerate(axes[:n]):
-            img = images[sel[k]]
-            if img.dtype != np.float32 and img.dtype != np.float64:
-                img = img.astype(np.float32) / 255.0
-            img = np.clip(img, 0, 1)
-            if img.ndim == 3 and img.shape[0] in [1, 3]:
-                img = np.transpose(img, (1, 2, 0))
-            if img.ndim == 3 and img.shape[2] == 1:
-                img = img[:, :, 0]
-
-            ax.imshow(img, cmap="gray" if img.ndim == 2 else None)
-            ax.set_title(
-                f"GT: {class_names[labels[sel[k]]]}\n"
-                f"Pred: {class_names[preds[sel[k]]]} ({probs[sel[k]]:.2f})",
-                fontsize=8, color=PALETTE["danger"]
-            )
+    for row, (title, imgs, color) in enumerate(zip(row_titles, sets, colors)):
+        for col in range(n_cols):
+            ax = axes[row][col]
+            if col < len(imgs):
+                ax.imshow(denormalize(imgs[col]))
+                for spine in ax.spines.values():
+                    spine.set_edgecolor(color)
+                    spine.set_linewidth(2.5)
+            else:
+                ax.axis("off")
             ax.set_xticks([])
             ax.set_yticks([])
+        axes[row][0].set_ylabel(title, fontsize=9, fontweight="bold",
+                                rotation=90, labelpad=8)
 
-        for k in range(n, len(axes)):
-            axes[k].set_visible(False)
+    fig.suptitle("Error Analysis — False Positives & False Negatives", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
 
-        plt.tight_layout()
-        if save_path:
-            suffix = "fp" if "Positive" in error_name else "fn"
-            path = save_path.replace(".png", f"_{suffix}.png")
-            fig.savefig(path, dpi=150, bbox_inches="tight")
-            print(f"Error analysis disimpan: {path}")
-        plt.show()
+def plot_metrics_comparison(metrics_dict, save_path=None):
+    metric_keys = ["accuracy", "precision", "recall", "f1"]
+    if any("auc" in v for v in metrics_dict.values()):
+        metric_keys.append("auc")
+
+    model_names = list(metrics_dict.keys())
+    x = np.arange(len(metric_keys))
+    width = 0.8 / len(model_names)
+    colors = [PALETTE["blue"], PALETTE["orange"], PALETTE["green"], PALETTE["red"]]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    for i, (name, metrics) in enumerate(metrics_dict.items()):
+        vals = [metrics.get(k, 0) for k in metric_keys]
+        bars = ax.bar(x + i * width - (len(model_names) - 1) * width / 2,
+                      vals, width * 0.9, label=name, color=colors[i % len(colors)],
+                      alpha=0.85, edgecolor="white")
+        for bar, val in zip(bars, vals):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
+                    f"{val:.3f}", ha="center", va="bottom", fontsize=8)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([k.upper() for k in metric_keys])
+    ax.set_ylim([0, 1.15])
+    _style_ax(ax, "Model Performance Comparison", ylabel="Score")
+    ax.legend()
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()

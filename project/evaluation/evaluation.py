@@ -5,7 +5,7 @@ import numpy as np
 # from PIL import Image
 
 from evaluation.metrics import (
-    get_predictions,
+    get_all_predictions,
     compute_metrics,
     print_metrics
 )
@@ -68,7 +68,7 @@ def run_full_evaluation(
 
     # Step 1: Kumpulkan prediksi
     print("Mengumpulkan prediksi pada test set ...")
-    all_labels, all_preds, all_probs = get_predictions(model, class_names)
+    all_labels, all_preds, all_probs = get_all_predictions(model, class_names)
 
     # Step 2: Metrik 
     print("\nMenghitung metrik ...")
@@ -204,8 +204,8 @@ def compare_models(
             save_path=os.path.join(OUTPUT_DIR, "training_curves_comparison.png")
         )
     if "auc" in baseline_metrics and "auc" in transfer_metrics:
-        preds_b, labels_b, probs_b = get_predictions(baseline_model, class_names)
-        preds_t, labels_t, probs_t = get_predictions(transfer_model, class_names)
+        preds_b, labels_b, probs_b = get_all_predictions(baseline_model, class_names)
+        preds_t, labels_t, probs_t = get_all_predictions(transfer_model, class_names)
         compare_roc_curves(
             {
                 "Baseline CNN":      {"labels": labels_b, "probs": probs_b},

@@ -114,30 +114,21 @@ def run_full_evaluation(
     sample_images = torch.cat(sample_images, dim=0)[:16]
     sample_labels = torch.cat(sample_labels_raw, dim=0)[:16].numpy()
 
-    # with torch.no_grad():
-    #     out = model(sample_images.to(device))
-    #     sample_preds = torch.argmax(torch.softmax(out, dim=1), dim=1).cpu().numpy()
-    #     sample_probs = torch.softmax(out, dim=1)[:, 1].cpu().numpy()
-
     # Konversi tensor images ke numpy untuk plotting
     images_np = sample_images.numpy() 
 
     plot_prediction_samples(
-        model, class_names, n=8, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"pred_samples_{model_name.lower().replace(' ', '_')}.png")
+        model, test_loader, n=8, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"pred_samples_{model_name.lower().replace(' ', '_')}.png")
     )
 
     print("\nPlotting error analysis ...")
-    # all_images_list = []
-    # for imgs, _ in test_loader:
-    #     all_images_list.append(imgs)
-    # all_images_np = torch.cat(all_images_list, dim=0).numpy()
 
     plot_error_analysis(
-        model, class_names=CLASS_NAMES, n_fp=4, n_fn=4, save_path=os.path.join(OUTPUT_DIR, f"error_analysis_{model_name.lower().replace(' ', '_')}.png")
+        model, test_loader, class_names=CLASS_NAMES, n_fp=4, n_fn=4, save_path=os.path.join(OUTPUT_DIR, f"error_analysis_{model_name.lower().replace(' ', '_')}.png")
     )
 
     if run_gradcam:
-        _run_gradcam(model, model_name, class_names)
+        _run_gradcam(model, model_name, test_loader)
 
     print(f"\nEvaluasi {model_name} selesai!\n")
     return metrics
@@ -147,7 +138,7 @@ def run_full_evaluation(
 # 2. GMilih Target Layer untuk Grad-CAM & Generate Grad-CAM
 # ------------------------------------------------------------------
 
-def _run_gradcam(model, model_name, class_names):
+def _run_gradcam(model, model_name, data_loader):
     print("\nRunning Grad-CAM ...")
     try:
         if hasattr(model, "model") and hasattr(model.model, "layer4"):
@@ -159,7 +150,7 @@ def _run_gradcam(model, model_name, class_names):
             return
         
         print(f"\n[Grad-CAM] Generating for {model_name} ...")
-        batch_gradcam(model, target_layer, class_names, n_samples=6, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"gradcam_{model_name.lower().replace(' ', '_')}.png"))
+        batch_gradcam(model, target_layer, data_loader, n_samples=6, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"gradcam_{model_name.lower().replace(' ', '_')}.png"))
     except Exception as e:
         print(f"Grad-CAM gagal: {e}")
 

@@ -117,7 +117,7 @@ def run_full_evaluation(
     images_np = sample_images.numpy() 
 
     plot_prediction_samples(
-        model, class_names, n=8, name=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"pred_samples_{model_name.lower().replace(' ', '_')}.png")
+        model, class_names, n=8, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"pred_samples_{model_name.lower().replace(' ', '_')}.png")
     )
 
     print("\nPlotting error analysis ...")
@@ -127,7 +127,7 @@ def run_full_evaluation(
     # all_images_np = torch.cat(all_images_list, dim=0).numpy()
 
     plot_error_analysis(
-        model, name=CLASS_NAMES, n_fp=4, n_fn=4, save_path=os.path.join(OUTPUT_DIR, f"error_analysis_{model_name.lower().replace(' ', '_')}.png")
+        model, class_names=CLASS_NAMES, n_fp=4, n_fn=4, save_path=os.path.join(OUTPUT_DIR, f"error_analysis_{model_name.lower().replace(' ', '_')}.png")
     )
 
     if run_gradcam:
@@ -238,6 +238,6 @@ def inspect_single_image(model, input_tensor, label,
 
     visualize_gradcam(
         model, target_layer, input_tensor, label,
-        name=CLASS_NAMES,
+        class_names=CLASS_NAMES,
         save_path=save_path
     )

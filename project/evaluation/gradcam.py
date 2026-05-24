@@ -175,7 +175,8 @@ def batch_gradcam(model, target_layer, data_loader, n_samples=8,
     model.eval()
 
     images, labels = [], []
-    for batch_imgs, batch_labels in data_loader:
+    for batch in data_loader:
+        batch_imgs, batch_labels, *_ = batch  # toleran terhadap dataloader yang return ekstra nilai
         for img, lbl in zip(batch_imgs, batch_labels):
             images.append(img)
             labels.append(lbl.item())

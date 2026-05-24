@@ -207,7 +207,8 @@ def plot_prediction_samples(
 
     images, labels, preds = [], [], []
     with torch.no_grad():
-        for imgs, lbls in data_loader:
+        for batch in data_loader:
+            imgs, lbls, *_ = batch  # toleran terhadap dataloader yang return ekstra nilai
             imgs = imgs.to(device)
             outputs = model(imgs)
             pred = outputs.argmax(dim=1).cpu()
@@ -268,7 +269,8 @@ def plot_error_analysis(
     fp_images, fn_images = [], []
 
     with torch.no_grad():
-        for imgs, lbls in data_loader:
+        for batch in data_loader:
+            imgs, lbls, *_ = batch  # toleran terhadap dataloader yang return ekstra nilai
             imgs_dev = imgs.to(device)
             outputs = model(imgs_dev)
             preds = outputs.argmax(dim=1).cpu().numpy()

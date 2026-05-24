@@ -29,7 +29,8 @@ def get_all_predictions(model, dataloader, device=None):
     all_probs = []
 
     with torch.no_grad():
-        for inputs, labels in dataloader:
+        for batch in dataloader:
+            inputs, labels, *_ = batch  # toleran terhadap dataloader yang return (img, label, path, dll)
             inputs = inputs.to(device)
             labels = labels.to(device)
 

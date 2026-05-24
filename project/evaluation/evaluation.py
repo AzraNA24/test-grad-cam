@@ -4,6 +4,9 @@ import numpy as np
 # import cv2
 # from PIL import Image
 
+OUTPUT_DIR = os.path.join(os.getcwd(), "evaluation_outputs")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 from evaluation.metrics import (
     get_all_predictions,
     compute_metrics,
@@ -55,6 +58,8 @@ def run_full_evaluation(
     run_gradcam=True,
     history=None,
 ):
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     if class_names is None:
         class_names = test_loader
 
@@ -77,10 +82,14 @@ def run_full_evaluation(
     # Step 3: Training curves
     if history is not None:
         print("\nPlotting training curves ...")
-        plot_training_curves(history, model_name=model_name, save_path=os.path.join(OUTPUT_DIR, f"{model_name}_training_curves.png")) 
+        save_path = os.path.join(OUTPUT_DIR, f"{model_name}_training_curves.png")
+        print(f"Saving to: {save_path}")
+        plot_training_curves(history, model_name=model_name, save_path=save_path)
 
     # Confusion Matrix
     print("\nPlotting confusion matrix ...")
+    save_path = os.path.join(OUTPUT_DIR, f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png")
+    print(f"Saving to: {save_path}")
     plot_confusion_matrix(
         metrics["confusion_matrix"], 
         class_names=CLASS_NAMES, 

@@ -1,258 +1,351 @@
-import os
-import torch
+"""
+Ini buat visualisasi hasil evaluasi model klasifikasi pneumonia pada X-ray. Plot-plotnya
+"""
+
+import math
 import numpy as np
-# import cv2
-# from PIL import Image
-
-OUTPUT_DIR = os.path.join(os.getcwd(), "evaluation_outputs")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-from evaluation.metrics import (
-    get_all_predictions,
-    compute_metrics,
-    print_metrics
-)
-from evaluation.gradcam import GradCAM, batch_gradcam, visualize_gradcam
-from evaluation.visualization import (
-    plot_confusion_matrix,
-    plot_roc_curve,
-    plot_training_curves,
-    plot_prediction_samples,
-    plot_error_analysis,
-    compare_training_curves,
-    compare_roc_curves,
-    plot_metrics_comparison,
-)
-from models.baseline_model import BaselineCNN
-from models.transfer_learning import ResNet50TransferLearning
-from preprocessing.dataloader import test_loader
-
-CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
-OUTPUT_DIR = "evaluation_outputs"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import seaborn as sns
+import itertools
+from sklearn.metrics import roc_curve, auc
+import torch
 
 # ------------------------------------------------------------------
-# 1. Sung aja
+# Global theme — consistent across all plots
 # ------------------------------------------------------------------
 
-def load_baseline(model_path="best_baseline_cnn.pth"):
-    """Load Baseline CNN dari checkpoint."""
-    model = BaselineCNN(num_classes=2)
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
-    model.eval()
-    print(f"Baseline CNN loaded from: {model_path}")
-    return model
+PALETTE = {
+    "blue":   "#2C7BE5", 
+    "red":    "#E5392C",
+    "green":  "#27AE60",
+    "orange": "#F39C12",
+    "gray":   "#7F8C8D",
+    "light":  "#F8F9FA",
+}
 
-def load_transfer(model_path="resnet50_frozen.pth"):
-    """Load ResNet50 Transfer Learning dari checkpoint."""
-    model = ResNet50TransferLearning(num_classes=2)
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
-    model.eval()
-    print(f"ResNet50 Transfer loaded from: {model_path}")
-    return model
+plt.rcParams.update({
+    "figure.facecolor":  PALETTE["light"],
+    "axes.facecolor":    "white",
+    "axes.spines.top":   False,
+    "axes.spines.right": False,
+    "font.family":       "DejaVu Sans",
+    "axes.titleweight":  "bold",
+})
 
-def run_full_evaluation(
-    model,
-    model_name="Model",
-    class_names=None,
-    run_gradcam=True,
-    history=None,
-):
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+def _style_ax(ax, title, xlabel=None, ylabel=None):
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+    if xlabel:
+        ax.set_xlabel(xlabel, fontsize=10)
+    if ylabel:
+        ax.set_ylabel(ylabel, fontsize=10)
+    ax.grid(True, alpha=0.25, linestyle="--")
+    ax.spines[["top", "right"]].set_visible(False)
+    
+# ------------------------------------------------------------------
+# 1. Confusion Matrix
+# ------------------------------------------------------------------
+
+def plot_confusion_matrix(cm, class_names=None, model_name="Model", normalize=False, save_path=None):
     if class_names is None:
-        class_names = CLASS_NAMES
+        class_names = ["NORMAL", "PNEUMONIA"]
 
-    # if device is None:
-    #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    print(f"\n{'='*60}")
-    print(f"EVALUASI MODEL: {model_name}")
-    print(f"{'='*60}\n")
-
-    # Step 1: Kumpulkan prediksi
-    print("Mengumpulkan prediksi pada test set ...")
-    all_labels, all_preds, all_probs = get_all_predictions(model, test_loader)
-
-    # Step 2: Metrik 
-    print("\nMenghitung metrik ...")
-    metrics = compute_metrics(all_labels, all_preds, all_probs)
-    print_metrics(metrics, model_name)
-
-    # Step 3: Training curves
-    if history is not None:
-        print("\nPlotting training curves ...")
-        save_path = os.path.join(OUTPUT_DIR, f"{model_name}_training_curves.png")
-        print(f"Saving to: {save_path}")
-        plot_training_curves(history, model_name=model_name, save_path=save_path)
-
-    # Confusion Matrix
-    print("\nPlotting confusion matrix ...")
-    save_path = os.path.join(OUTPUT_DIR, f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png")
-    print(f"Saving to: {save_path}")
-    plot_confusion_matrix(
-        metrics["confusion_matrix"], 
-        class_names=CLASS_NAMES, 
-        model_name=model_name, 
-        save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png")
-    )
-
-    # Confusion matrix normalized
-    plot_confusion_matrix(
-        metrics["confusion_matrix"], 
-        class_names=CLASS_NAMES, 
-        model_name=model_name, 
-        normalize=True, 
-        save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png")
-    )
-
-    # Step 5: Roc curve
-    print("\nPlotting ROC curve ...")
-    if "auc" in metrics:
-        plot_roc_curve(all_labels, all_probs, model_name=model_name, save_path=os.path.join(OUTPUT_DIR, f"roc_curve_{model_name.lower().replace(' ', '_')}.png"))
-
-    # Step 4: Sample gambar dari test_loader untuk visualisasi
-    print("\nPlotting prediction samples ...")
-    sample_images, sample_labels_raw = [], []
-    for imgs, lbls in test_loader:
-        sample_images.append(imgs)
-        sample_labels_raw.append(lbls)
-        if sum(len(b) for b in sample_images) >= 16:
-            break
-
-    sample_images = torch.cat(sample_images, dim=0)[:16]
-    sample_labels = torch.cat(sample_labels_raw, dim=0)[:16].numpy()
-
-    # Konversi tensor images ke numpy untuk plotting
-    images_np = sample_images.numpy() 
-
-    plot_prediction_samples(
-        model, test_loader, n=8, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"pred_samples_{model_name.lower().replace(' ', '_')}.png")
-    )
-
-    print("\nPlotting error analysis ...")
-
-    plot_error_analysis(
-        model, test_loader, class_names=CLASS_NAMES, n_fp=4, n_fn=4, save_path=os.path.join(OUTPUT_DIR, f"error_analysis_{model_name.lower().replace(' ', '_')}.png")
-    )
-
-    if run_gradcam:
-        _run_gradcam(model, model_name, test_loader)
-
-    print(f"\nEvaluasi {model_name} selesai!\n")
-    return metrics
-
-
-# ------------------------------------------------------------------
-# 2. GMilih Target Layer untuk Grad-CAM & Generate Grad-CAM
-# ------------------------------------------------------------------
-
-def _run_gradcam(model, model_name, data_loader):
-    print("\nRunning Grad-CAM ...")
-    try:
-        if hasattr(model, "model") and hasattr(model.model, "layer4"):
-            last_block = model.model.layer4[-1]
-            # Bottleneck block (ResNet50) punya conv3 di dalamnya;
-            # BasicBlock (ResNet18/34) punya conv2.
-            # Hook harus dipasang di conv layer, bukan di block container-nya.
-            if hasattr(last_block, "conv3"):
-                target_layer = last_block.conv2       # ResNet50 Bottleneck: conv2 adalah 3×3 conv, lebih spesifik secara spasial
-            elif hasattr(last_block, "conv2"):
-                target_layer = last_block.conv2       # ResNet18/34 BasicBlock
-            else:
-                target_layer = last_block             # fallback
-        elif hasattr(model, "conv3"):
-            target_layer = model.conv3
-        else:
-            print("Grad-CAM: target layer tidak ditemukan, dilewati.")
-            return
-        
-        print(f"\n[Grad-CAM] Generating for {model_name} ...")
-        batch_gradcam(model, target_layer, data_loader, n_samples=6, class_names=CLASS_NAMES, save_path=os.path.join(OUTPUT_DIR, f"gradcam_{model_name.lower().replace(' ', '_')}.png"))
-    except Exception as e:
-        print(f"Grad-CAM gagal: {e}")
-
-# ------------------------------------------------------------------
-# 3. Perbandingan model side-by-side
-# ------------------------------------------------------------------
-
-def compare_models(
-        baseline_model_path="best_baseline_cnn.pth",
-        transfer_model_path="resnet50_frozen.pth",
-        history_baseline=None,
-        history_transfer=None,
-        class_names=None,
-    ):
-
-    if class_names is None:
-        class_names = CLASS_NAMES
-    
-    # 1. Evaluasi model baseline
-    baseline_model = load_baseline(baseline_model_path)
-    baseline_metrics = run_full_evaluation(
-        baseline_model,
-        model_name="Baseline CNN",
-        class_names=class_names,
-        history=history_baseline,
-        run_gradcam=True,
-    )
-    # 2. Evaluasi model transfer learning
-    transfer_model = load_transfer(transfer_model_path)
-    transfer_metrics = run_full_evaluation(
-        transfer_model,
-        model_name="ResNet50 Transfer",
-        class_names=class_names,
-        history=history_transfer,
-        run_gradcam=True,
-    )   
-
-    # 3. Bandingkan kedua model
-    print("\n" + "="*65)
-    print("MODEL COMPARISON")
-    print("="*65)
-    
-    plot_metrics_comparison(
-        {"Baseline CNN": baseline_metrics,
-         "ResNet50 Transfer": transfer_metrics
-        },
-        save_path=os.path.join(OUTPUT_DIR, "metrics_comparison.png")
-    )
-    if history_baseline is not None and history_transfer is not None:
-        compare_training_curves(
-            history_baseline, history_transfer,
-            save_path=os.path.join(OUTPUT_DIR, "training_curves_comparison.png")
-        )
-    if "auc" in baseline_metrics and "auc" in transfer_metrics:
-        labels_b, preds_b, probs_b = get_all_predictions(baseline_model, test_loader)
-        labels_t, preds_t, probs_t = get_all_predictions(transfer_model, test_loader)
-        compare_roc_curves(
-            {
-                "Baseline CNN":      {"labels": labels_b, "probs": probs_b},
-                "ResNet50 Transfer": {"labels": labels_t, "probs": probs_t},
-            },
-            save_path=os.path.join(OUTPUT_DIR, "roc_comparison.png")
-        )
-    
-    print(f"\nSemua output disimpan di folder: '{OUTPUT_DIR}/'")
-    print(f"    Metrics Baseline : Acc={baseline_metrics['accuracy']:.4f} | "
-          f"F1={baseline_metrics['f1']:.4f} | AUC={baseline_metrics.get('auc', 'N/A')}")
-    print(f"    Metrics Transfer  : Acc={transfer_metrics['accuracy']:.4f} | "
-          f"F1={transfer_metrics['f1']:.4f} | AUC={transfer_metrics.get('auc', 'N/A')}")
-
-    return baseline_metrics, transfer_metrics
-
-# ------------------------------------------------------------------
-# 3. Visualisasi standalone Grd-Cam
-# ------------------------------------------------------------------
-def inspect_single_image(model, input_tensor, label,
-                          model_type="resnet", save_path=None):
-    if model_type == "resnet":
-        target_layer = model.model.layer4[-1]
+    if normalize:
+        cm_display = cm.astype(float) / cm.sum(axis=1, keepdims=True)
+        fmt = ".2%"
+        title = f"Normalized Confusion Matrix — {model_name}"
     else:
-        target_layer = model.conv3
+        cm_display = cm
+        fmt = "d"
+        title = f"Confusion Matrix — {model_name}"
 
-    visualize_gradcam(
-        model, target_layer, input_tensor, label,
-        class_names=CLASS_NAMES,
-        save_path=save_path
+    fig, ax = plt.subplots(figsize=(6, 5))
+    sns.heatmap(
+        cm_display,
+        annot=True,
+        fmt=fmt,
+        cmap="Blues",
+        xticklabels=class_names,
+        yticklabels=class_names,
+        linewidths=0.5,
+        linecolor="white",
+        ax=ax,
+        cbar_kws={"shrink": 0.8},
     )
+
+    ax.set_xlabel("Predicted Label", fontsize=11)
+    ax.set_ylabel("True Label", fontsize=11)
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+
+# ------------------------------------------------------------------
+# 2. ROC Curve
+# ------------------------------------------------------------------
+
+def plot_roc_curve(labels, probs, model_name="Model", save_path=None):
+    fpr, tpr, _ = roc_curve(labels, probs)
+    roc_auc = auc(fpr, tpr)
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    ax.plot(fpr, tpr, color=PALETTE["blue"], lw=2,
+            label=f"{model_name} (AUC = {roc_auc:.4f})")
+    ax.plot([0, 1], [0, 1], color=PALETTE["gray"], lw=1.5,
+            linestyle="--", label="Random Classifier")
+    ax.fill_between(fpr, tpr, alpha=0.08, color=PALETTE["blue"])
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1.02])
+    _style_ax(ax, f"ROC Curve — {model_name}", "False Positive Rate", "True Positive Rate")
+    ax.legend(loc="lower right")
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+    return roc_auc
+
+def compare_roc_curves(results_dict, save_path=None):
+    colors = [PALETTE["blue"], PALETTE["orange"], PALETTE["green"], PALETTE["red"]]
+    fig, ax = plt.subplots(figsize=(7, 6))
+
+    for i, (name, data) in enumerate(results_dict.items()):
+        fpr, tpr, _ = roc_curve(data["labels"], data["probs"])
+        roc_auc = auc(fpr, tpr)
+        ax.plot(fpr, tpr, color=colors[i % len(colors)], lw=2,
+                label=f"{name} (AUC = {roc_auc:.4f})")
+
+    ax.plot([0, 1], [0, 1], color=PALETTE["gray"], lw=1.5,
+            linestyle="--", label="Random")
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1.02])
+    _style_ax(ax, "ROC Curve Comparison", "False Positive Rate", "True Positive Rate")
+    ax.legend(loc="lower right")
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+# ------------------------------------------------------------------
+# 3. Training Curves
+# ------------------------------------------------------------------
+
+def plot_training_curves(history: dict, model_name="Model", save_path=None):
+    epochs = range(1, len(history["train_loss"]) + 1)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(f"Training History — {model_name}", fontsize=14, fontweight="bold")
+
+    # Loss
+    ax1.plot(epochs, history["train_loss"], color=PALETTE["blue"],  lw=2, label="Train Loss")
+    ax1.plot(epochs, history["val_loss"],   color=PALETTE["red"],   lw=2, label="Val Loss", linestyle="--")
+    _style_ax(ax1, "Loss per Epoch", "Epoch", "Loss")
+    ax1.legend()
+
+    # Accuracy
+    ax2.plot(epochs, history["train_acc"], color=PALETTE["blue"],  lw=2, label="Train Acc")
+    ax2.plot(epochs, history["val_acc"],   color=PALETTE["red"],   lw=2, label="Val Acc", linestyle="--")
+    ax2.set_ylim([0, 1.05])
+    _style_ax(ax2, "Accuracy per Epoch", "Epoch", "Accuracy")
+    ax2.legend()
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+def compare_training_curves(history_baseline, history_transfer, save_path=None):
+    epochs_b = range(1, len(history_baseline["val_acc"]) + 1)
+    epochs_t = range(1, len(history_transfer["val_acc"]) + 1)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle("Model Comparison — Baseline CNN vs Transfer Learning", fontsize=13, fontweight="bold")
+
+    labels = [("Baseline CNN", PALETTE["blue"]), 
+              ("ResNet50 Transfer", PALETTE["orange"])]
+
+    for ax, key, title, ylim in [
+        (axes[0], "val_loss",  "Validation Loss",     None),
+        (axes[1], "val_acc",   "Validation Accuracy", (0, 1.05)),
+    ]:
+        ax.plot(epochs_b, history_baseline[key], color=labels[0][1], lw=2, label=labels[0][0])
+        ax.plot(epochs_t, history_transfer[key], color=labels[1][1], lw=2, label=labels[1][0], linestyle="--")
+        _style_ax(ax, title, "Epoch", key.split("_")[1].capitalize())
+        if ylim:
+            ax.set_ylim(ylim)
+        ax.legend()
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+# ------------------------------------------------------------------
+# 4. Prediction Samples
+# ------------------------------------------------------------------
+def denormalize(tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    t = tensor.clone().cpu().numpy().transpose(1, 2, 0)
+    t = t * np.array(std) + np.array(mean)
+    return np.clip(t, 0, 1)
+
+def plot_prediction_samples(
+    model, data_loader, n=8,
+    class_names=None, save_path=None
+):
+    if class_names is None:
+        class_names = ["NORMAL", "PNEUMONIA"]
+
+    device = next(model.parameters()).device
+    model.eval()
+
+    images, labels, preds = [], [], []
+    with torch.no_grad():
+        for batch in data_loader:
+            imgs, lbls, *_ = batch  # toleran terhadap dataloader yang return ekstra nilai
+            imgs = imgs.to(device)
+            outputs = model(imgs)
+            pred = outputs.argmax(dim=1).cpu()
+            images.extend(imgs.cpu())
+            labels.extend(lbls.numpy())
+            preds.extend(pred.numpy())
+            if len(images) >= n:
+                break
+
+    images, labels, preds = images[:n], labels[:n], preds[:n]
+    ncols = min(4, n)
+    nrows = (n + ncols - 1) // ncols
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 4 * nrows))
+    axes = np.array(axes).flatten()
+
+    for i, (img, lbl, pred) in enumerate(zip(images, labels, preds)):
+        ax = axes[i]
+        ax.imshow(denormalize(img))
+        correct = pred == lbl
+        border_color = PALETTE["green"] if correct else PALETTE["red"]
+        for spine in ax.spines.values():
+            spine.set_edgecolor(border_color)
+            spine.set_linewidth(3)
+        ax.set_title(
+            f"True: {class_names[lbl]}\nPred: {class_names[pred]}",
+            fontsize=9,
+            color="black"
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    for j in range(i + 1, len(axes)):
+        axes[j].axis("off")
+
+    fig.suptitle("Prediction Examples  (green = correct, red = wrong)", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+
+# ------------------------------------------------------------------
+# 5. Error Analysis
+# ------------------------------------------------------------------
+
+def plot_error_analysis(
+    model, data_loader, class_names=None,
+    n_fp=4, n_fn=4, save_path=None
+):
+    if class_names is None:
+        class_names = ["NORMAL", "PNEUMONIA"]
+
+    device = next(model.parameters()).device
+    model.eval()
+
+    fp_images, fn_images = [], []
+
+    with torch.no_grad():
+        for batch in data_loader:
+            imgs, lbls, *_ = batch  # toleran terhadap dataloader yang return ekstra nilai
+            imgs_dev = imgs.to(device)
+            outputs = model(imgs_dev)
+            preds = outputs.argmax(dim=1).cpu().numpy()
+
+            for img, lbl, pred in zip(imgs.cpu(), lbls.numpy(), preds):
+                lbl = int(lbl)
+                pred = int(pred)
+                if lbl == 0 and pred == 1 and len(fp_images) < n_fp:
+                    fp_images.append(img)
+                elif lbl == 1 and pred == 0 and len(fn_images) < n_fn:
+                    fn_images.append(img)
+
+            if len(fp_images) >= n_fp and len(fn_images) >= n_fn:
+                break
+
+    n_cols = max(n_fp, n_fn)
+    fig, axes = plt.subplots(2, n_cols, figsize=(3.5 * n_cols, 7))
+
+    row_titles = [
+        f"False Positives ({n_fp})  — NORMAL predicted as PNEUMONIA",
+        f"False Negatives ({n_fn})  — PNEUMONIA predicted as NORMAL",
+    ]
+    sets = [fp_images, fn_images]
+    colors = [PALETTE["orange"], PALETTE["red"]]
+
+    for row, (title, imgs, color) in enumerate(zip(row_titles, sets, colors)):
+        for col in range(n_cols):
+            ax = axes[row][col]
+            if col < len(imgs):
+                ax.imshow(denormalize(imgs[col]))
+                for spine in ax.spines.values():
+                    spine.set_edgecolor(color)
+                    spine.set_linewidth(2.5)
+            else:
+                ax.axis("off")
+            ax.set_xticks([])
+            ax.set_yticks([])
+        axes[row][0].set_ylabel(title, fontsize=9, fontweight="bold",
+                                rotation=90, labelpad=8)
+
+    fig.suptitle("Error Analysis — False Positives & False Negatives", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()
+
+def plot_metrics_comparison(metrics_dict, save_path=None):
+    metric_keys = ["accuracy", "precision", "recall", "f1"]
+    if any("auc" in v for v in metrics_dict.values()):
+        metric_keys.append("auc")
+
+    model_names = list(metrics_dict.keys())
+    x = np.arange(len(metric_keys))
+    width = 0.8 / len(model_names)
+    colors = [PALETTE["blue"], PALETTE["orange"], PALETTE["green"], PALETTE["red"]]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    for i, (name, metrics) in enumerate(metrics_dict.items()):
+        vals = [metrics.get(k, 0) for k in metric_keys]
+        bars = ax.bar(x + i * width - (len(model_names) - 1) * width / 2,
+                      vals, width * 0.9, label=name, color=colors[i % len(colors)],
+                      alpha=0.85, edgecolor="white")
+        for bar, val in zip(bars, vals):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
+                    f"{val:.3f}", ha="center", va="bottom", fontsize=8)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([k.upper() for k in metric_keys])
+    ax.set_ylim([0, 1.15])
+    _style_ax(ax, "Model Performance Comparison", ylabel="Score")
+    ax.legend()
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.show()

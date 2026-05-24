@@ -1,13 +1,3 @@
-"""
-Jalankan seluruh pipeline evaluasi untuk model CNN pada dataset pneumonia X-ray,dimana;
-- Mengumpulkan prediksi dari test_loader
-- Menghitung metrik: accuracy, precision, recall, F1-score, ROC-AUC
-- Plot confusion matrix, ROC curve, prediction samples, error analysis
-- Generate Grad-CAM untuk sampel gambar
-- Bandingkan beberapa model dalam satu tabel ringkas
-
-"""
-
 import os
 import torch
 import numpy as np
@@ -82,7 +72,7 @@ def run_full_evaluation(
 
     # Step 1: Kumpulkan prediksi
     print("Mengumpulkan prediksi pada test set ...")
-    all_labels, all_preds, all_probs = get_all_predictions(model, class_names)
+    all_labels, all_preds, all_probs = get_all_predictions(model, test_loader)
 
     # Step 2: Metrik 
     print("\nMenghitung metrik ...")
@@ -116,12 +106,12 @@ def run_full_evaluation(
         save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png")
     )
 
-    # Step 4: Roc curve
+    # Step 5: Roc curve
     print("\nPlotting ROC curve ...")
     if "auc" in metrics:
         plot_roc_curve(all_labels, all_probs, model_name=model_name, save_path=os.path.join(OUTPUT_DIR, f"roc_curve_{model_name.lower().replace(' ', '_')}.png"))
 
-    # Step 5: Sample gambar dari test_loader untuk visualisasi
+    # Step 4: Sample gambar dari test_loader untuk visualisasi
     print("\nPlotting prediction samples ...")
     sample_images, sample_labels_raw = [], []
     for imgs, lbls in test_loader:
@@ -162,7 +152,15 @@ def _run_gradcam(model, model_name, data_loader):
     try:
         if hasattr(model, "model") and hasattr(model.model, "layer4"):
             last_block = model.model.layer4[-1]
-            target_layer = last_block.conv3
+            # Bottleneck block (ResNet50) punya conv3 di dalamnya;
+            # BasicBlock (ResNet18/34) punya conv2.
+            # Hook harus dipasang di conv layer, bukan di block container-nya.
+            if hasattr(last_block, "conv3"):
+                target_layer = last_block.conv2       # ResNet50 Bottleneck: conv2 adalah 3×3 conv, lebih spesifik secara spasial
+            elif hasattr(last_block, "conv2"):
+                target_layer = last_block.conv2       # ResNet18/34 BasicBlock
+            else:
+                target_layer = last_block             # fallback
         elif hasattr(model, "conv3"):
             target_layer = model.conv3
         else:
@@ -225,8 +223,8 @@ def compare_models(
             save_path=os.path.join(OUTPUT_DIR, "training_curves_comparison.png")
         )
     if "auc" in baseline_metrics and "auc" in transfer_metrics:
-        labels_b, preds_b, probs_b = get_all_predictions(baseline_model, class_names)
-        labels_t, preds_t, probs_t = get_all_predictions(transfer_model, class_names)
+        labels_b, preds_b, probs_b = get_all_predictions(baseline_model, test_loader)
+        labels_t, preds_t, probs_t = get_all_predictions(transfer_model, test_loader)
         compare_roc_curves(
             {
                 "Baseline CNN":      {"labels": labels_b, "probs": probs_b},

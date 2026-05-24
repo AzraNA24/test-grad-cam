@@ -12,16 +12,16 @@ from sklearn.metrics import roc_curve, auc
 import torch
 
 # ------------------------------------------------------------------
-# Tema global — konsisten di semua plot
+# Global theme — consistent across all plots
 # ------------------------------------------------------------------
 
 PALETTE = {
-    "blue":   "#2C7BE5",
+    "blue":   "#2C7BE5", 
     "red":    "#E5392C",
-    "green":   "#27AE60",
-    "orange":   "#F39C12",
+    "green":  "#27AE60",
+    "orange": "#F39C12",
     "gray":   "#7F8C8D",
-    "light":        "#F8F9FA",
+    "light":  "#F8F9FA",
 }
 
 plt.rcParams.update({
@@ -252,7 +252,7 @@ def plot_prediction_samples(
 
 
 # ------------------------------------------------------------------
-# 6. Error Analysis
+# 5. Error Analysis
 # ------------------------------------------------------------------
 
 def plot_error_analysis(

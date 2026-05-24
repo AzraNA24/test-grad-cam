@@ -1,3 +1,13 @@
+"""
+Jalankan seluruh pipeline evaluasi untuk model CNN pada dataset pneumonia X-ray,dimana;
+- Mengumpulkan prediksi dari test_loader
+- Menghitung metrik: accuracy, precision, recall, F1-score, ROC-AUC
+- Plot confusion matrix, ROC curve, prediction samples, error analysis
+- Generate Grad-CAM untuk sampel gambar
+- Bandingkan beberapa model dalam satu tabel ringkas
+
+"""
+
 import os
 import torch
 import numpy as np
@@ -106,12 +116,12 @@ def run_full_evaluation(
         save_path=os.path.join(OUTPUT_DIR, f"confusion_matrix_norm_{model_name.lower().replace(' ', '_')}.png")
     )
 
-    # Step 5: Roc curve
+    # Step 4: Roc curve
     print("\nPlotting ROC curve ...")
     if "auc" in metrics:
         plot_roc_curve(all_labels, all_probs, model_name=model_name, save_path=os.path.join(OUTPUT_DIR, f"roc_curve_{model_name.lower().replace(' ', '_')}.png"))
 
-    # Step 4: Sample gambar dari test_loader untuk visualisasi
+    # Step 5: Sample gambar dari test_loader untuk visualisasi
     print("\nPlotting prediction samples ...")
     sample_images, sample_labels_raw = [], []
     for imgs, lbls in test_loader:
@@ -151,7 +161,8 @@ def _run_gradcam(model, model_name, data_loader):
     print("\nRunning Grad-CAM ...")
     try:
         if hasattr(model, "model") and hasattr(model.model, "layer4"):
-            target_layer = model.model.layer4[-1]
+            last_block = model.model.layer4[-1]
+            target_layer = last_block.conv3
         elif hasattr(model, "conv3"):
             target_layer = model.conv3
         else:

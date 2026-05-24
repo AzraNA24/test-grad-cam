@@ -16,16 +16,16 @@ import torch
 # ------------------------------------------------------------------
 
 PALETTE = {
-    "primary":   "#2C7BE5",
-    "danger":    "#E5392C",
-    "success":   "#27AE60",
-    "warning":   "#F39C12",
-    "neutral":   "#7F8C8D",
-    "bg":        "#F8F9FA",
+    "blue":   "#2C7BE5",
+    "red":    "#E5392C",
+    "green":   "#27AE60",
+    "orange":   "#F39C12",
+    "gray":   "#7F8C8D",
+    "light":        "#F8F9FA",
 }
 
 plt.rcParams.update({
-    "figure.facecolor":  PALETTE["bg"],
+    "figure.facecolor":  PALETTE["light"],
     "axes.facecolor":    "white",
     "axes.spines.top":   False,
     "axes.spines.right": False,

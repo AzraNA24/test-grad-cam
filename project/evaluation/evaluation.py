@@ -61,7 +61,7 @@ def run_full_evaluation(
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     if class_names is None:
-        class_names = test_loader
+        class_names = CLASS_NAMES
 
     # if device is None:
     #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -176,7 +176,7 @@ def compare_models(
     ):
 
     if class_names is None:
-        class_names = test_loader
+        class_names = CLASS_NAMES
     
     # 1. Evaluasi model baseline
     baseline_model = load_baseline(baseline_model_path)
@@ -214,8 +214,8 @@ def compare_models(
             save_path=os.path.join(OUTPUT_DIR, "training_curves_comparison.png")
         )
     if "auc" in baseline_metrics and "auc" in transfer_metrics:
-        preds_b, labels_b, probs_b = get_all_predictions(baseline_model, class_names)
-        preds_t, labels_t, probs_t = get_all_predictions(transfer_model, class_names)
+        labels_b, preds_b, probs_b = get_all_predictions(baseline_model, class_names)
+        labels_t, preds_t, probs_t = get_all_predictions(transfer_model, class_names)
         compare_roc_curves(
             {
                 "Baseline CNN":      {"labels": labels_b, "probs": probs_b},

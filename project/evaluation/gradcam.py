@@ -64,10 +64,10 @@ class GradCAM:
         output.backward(gradient=one_hot, retain_graph=True)
 
         # Global Average Pooling pada gradients 
-        weights = self._gradients.mean(dim=[2, 3], keepdim=True)      
+        weights = self.gradients.mean(dim=[2, 3], keepdim=True)      
 
         # Weighted combination of activation maps
-        cam = (weights * self._activations).sum(dim=1, keepdim=True)  # (1, 1, h, w)
+        cam = (weights * self.activations).sum(dim=1, keepdim=True)  # (1, 1, h, w)
         # ReLU ambil hanya kontribusi positif
         cam = F.relu(cam)
 
@@ -91,7 +91,6 @@ class GradCAM:
     # Overlay heatmap ke gambar asli
     # ------------------------------------------------------------------
 
-    @staticmethod
     def overlay(self, original_image_np, heatmap, alpha=0.45, colormap=cv2.COLORMAP_JET):
         heatmap_uint8 = np.uint8(255 * heatmap)
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, colormap)
@@ -127,7 +126,7 @@ def visualize_gradcam(model, target_layer, input_tensor, label, class_names=None
         class_names = ["NORMAL", "PNEUMONIA"]
 
     gradcam = GradCAM(model, target_layer)
-    heatmap = gradcam.generate(input_tensor, target_class=target_class)
+    heatmap = gradcam.generate(input_tensor, class_idx=target_class)
     gradcam.remove_hooks()
 
     original = denormalize(input_tensor.squeeze(0))

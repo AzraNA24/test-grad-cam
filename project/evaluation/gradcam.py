@@ -23,7 +23,7 @@ class GradCAM:
 
         # Pasang hook
         self._fwd_hook = target_layer.register_forward_hook(self._save_activation)
-        self._bwd_hook = target_layer.register_full_backward_hook(self._save_gradient)
+        self._bwd_hook = target_layer.register_backward_hook(self._save_gradient)
 
     # ------------------------------------------------------------------
     # Hook callbacks
@@ -46,9 +46,15 @@ class GradCAM:
 
         self.model.eval()
         self.model.to(device)
-        input_tensor = input_tensor.to(device)
 
-        # Forward pass
+        # Reset agar tidak pakai nilai dari generate() sebelumnya
+        self.gradients = None
+        self.activations = None
+
+        # requires_grad_(True) agar gradient bisa mengalir saat backward
+        input_tensor = input_tensor.to(device).requires_grad_(True)
+
+        # Forward pass — jangan dalam torch.no_grad() agar hook backward bisa firing
         output = self.model(input_tensor)          # (1, num_classes)
         probs = torch.softmax(output, dim=1)
 

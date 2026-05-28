@@ -1,3 +1,13 @@
+"""
+Jalankan seluruh pipeline evaluasi untuk model CNN pada dataset pneumonia X-ray,dimana;
+- Mengumpulkan prediksi dari test_loader
+- Menghitung metrik: accuracy, precision, recall, F1-score, ROC-AUC
+- Plot confusion matrix, ROC curve, prediction samples, error analysis
+- Generate Grad-CAM untuk sampel gambar
+- Bandingkan beberapa model dalam satu tabel ringkas
+
+"""
+
 import os
 import torch
 import numpy as np

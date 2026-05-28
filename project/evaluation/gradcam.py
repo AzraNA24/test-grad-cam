@@ -47,14 +47,12 @@ class GradCAM:
         self.model.eval()
         self.model.to(device)
 
-        # Reset agar tidak pakai nilai dari generate() sebelumnya
         self.gradients = None
         self.activations = None
 
-        # requires_grad_(True) agar gradient bisa mengalir saat backward
         input_tensor = input_tensor.to(device).requires_grad_(True)
 
-        # Forward pass — jangan dalam torch.no_grad() agar hook backward bisa firing
+        # Forward pass  hook backward bisa firing
         output = self.model(input_tensor)          # (1, num_classes)
         probs = torch.softmax(output, dim=1)
 
@@ -182,7 +180,7 @@ def batch_gradcam(model, target_layer, data_loader, n_samples=8,
 
     images, labels = [], []
     for batch in data_loader:
-        batch_imgs, batch_labels, *_ = batch  # toleran terhadap dataloader yang return ekstra nilai
+        batch_imgs, batch_labels, *_ = batch
         for img, lbl in zip(batch_imgs, batch_labels):
             images.append(img)
             labels.append(lbl.item())
@@ -203,7 +201,7 @@ def batch_gradcam(model, target_layer, data_loader, n_samples=8,
             ax=axes[i]
         )
 
-    plt.suptitle("Grad-CAM Analysis — Chest X-Ray", fontsize=14, fontweight="bold", y=1.01)
+    plt.suptitle("Grad-CAM Analysis - Chest X-Ray", fontsize=14, fontweight="bold", y=1.01)
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
